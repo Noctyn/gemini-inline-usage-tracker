@@ -1,6 +1,6 @@
 # Gemini Inline Usage Tracker
 
-<div align="center">
+<center>
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
@@ -16,7 +16,7 @@
 
 [预览](#-预览) • [主要功能](#-主要功能) • [安装](#-安装) • [细节说明](#-细节说明) • [开源协议](#-开源协议)
 
-</div>
+</center>
 
 ---
 
@@ -25,23 +25,23 @@
 ### 1. 默认状态
 紧贴输入框底部，直接显示 5 小时窗口用量、重置倒计时与周限额。随网页自动切换深浅色主题。
 
-<p align="center">
+<center>
   <img src="./docs/images/idle.png" alt="默认状态">
-</p>
+</center>
 
 ### 2. 生成状态
 Gemini 输出回答时，进度条会切换为流光动画，并实时统计耗时与输出字数。回答结束后自动同步额度，显示单次对话的消耗量（如 `+3%`）。
 
-<p align="center">
+<center>
   <img src="./docs/images/generating.png" alt="生成状态">
-</p>
+</center>
 
 ### 3. 详情面板
 鼠标悬停或点击可展开详情卡片，查看 5 小时窗口与 7 天周限额的具体数据、消耗进度参考线、准确重置时间，支持手动刷新。
 
-<p align="center">
+<center>
   <img src="./docs/images/panel.png" alt="详情面板">
-</p>
+</center>
 
 ---
 

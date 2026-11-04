@@ -1,6 +1,6 @@
 # Gemini Inline Usage Tracker
 
-<div align="center">
+<center>
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
@@ -15,7 +15,7 @@
 
 [Preview](#-preview) • [Key Features](#-key-features) • [Installation](#-installation) • [Technical Details](#-technical-details) • [License](#-license)
 
-</div>
+</center>
 
 ---
 
@@ -24,23 +24,23 @@
 ### 1. Idle State
 Docked cleanly beneath the input container. Displays 5-hour window usage, reset countdown, and weekly quota. Automatically adapts to dark/light theme.
 
-<p align="center">
+<center>
   <img src="./docs/images/idle.png" alt="Idle State">
-</p>
+</center>
 
 ### 2. Generating State
 Switches to an active wave animation during streaming responses, displaying real-time generation elapsed time and word count. Automatically queries updated quotas upon completion to report exact per-turn consumption (e.g. `+3%`).
 
-<p align="center">
+<center>
   <img src="./docs/images/generating.png" alt="Generating State">
-</p>
+</center>
 
 ### 3. Details Panel
 Hover or click to expand the full breakdown card. Inspect 5-hour and 7-day metrics, consumption pacing reference ticks, accurate reset timestamps, and trigger manual refresh.
 
-<p align="center">
+<center>
   <img src="./docs/images/panel.png" alt="Details Panel">
-</p>
+</center>
 
 ---
 
