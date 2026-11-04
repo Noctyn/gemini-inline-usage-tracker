@@ -1,12 +1,9 @@
 # Gemini Inline Usage Tracker
 
-<div align="center">
-
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-<br>
-
 **Native-styled inline usage & reset countdown tracker docked right below the Gemini chat input.**
+
 [![Greasy Fork](https://img.shields.io/badge/Greasy%20Fork-v2.4.5-red?logo=greasyfork)](https://greasyfork.org/scripts/603683-gemini-inline-usage-tracker)
 [![Direct Install](https://img.shields.io/badge/Direct%20Install-1--Click%20Install-37a77c?logo=tampermonkey&logoColor=white)](https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
@@ -14,8 +11,6 @@
 [![Support](https://img.shields.io/badge/Userscript-Tampermonkey%20%7C%20Violentmonkey%20%7C%20ScriptCat-green.svg)](#-installation)
 
 [Preview](#-preview) • [Key Features](#-key-features) • [Installation](#-installation) • [Technical Details](#-technical-details) • [License](#-license)
-
-</div>
 
 ---
 
@@ -25,21 +20,27 @@
 Docked cleanly beneath the input container. Displays 5-hour window usage, reset countdown, and weekly quota. Automatically adapts to dark/light theme.
 
 <div align="center">
-  <img src="./docs/images/idle.png" alt="Idle State">
+  <center>
+    <img src="./docs/images/idle.png" alt="Idle State">
+  </center>
 </div>
 
 ### 2. Generating State
 Switches to an active wave animation during streaming responses, displaying real-time generation elapsed time and word count. Automatically queries updated quotas upon completion to report exact per-turn consumption (e.g. `+3%`).
 
 <div align="center">
-  <img src="./docs/images/generating.png" alt="Generating State">
+  <center>
+    <img src="./docs/images/generating.png" alt="Generating State">
+  </center>
 </div>
 
 ### 3. Details Panel
 Hover or click to expand the full breakdown card. Inspect 5-hour and 7-day metrics, consumption pacing reference ticks, accurate reset timestamps, and trigger manual refresh.
 
 <div align="center">
-  <img src="./docs/images/panel.png" alt="Details Panel">
+  <center>
+    <img src="./docs/images/panel.png" alt="Details Panel">
+  </center>
 </div>
 
 ---
@@ -69,6 +70,7 @@ Hover or click to expand the full breakdown card. Inspect 5-hour and 7-day metri
 ---
 
 ## 🚀 Installation
+
 1. Install a userscript manager in your browser: [Tampermonkey](https://www.tampermonkey.net/), [Violentmonkey](https://violentmonkey.github.io/), or [ScriptCat](https://scriptcat.org/).
 2. Install the userscript via **[Greasy Fork](https://greasyfork.org/scripts/603683-gemini-inline-usage-tracker)** or click **[👉 1-Click Direct Install](https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js)** (or copy [`gemini-usage-tracker.user.js`](./gemini-usage-tracker.user.js) manually).
 3. Open or refresh [Google Gemini](https://gemini.google.com/app). The inline tracking bar will dock directly under the prompt area.
