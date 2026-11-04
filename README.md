@@ -24,17 +24,23 @@
 ### 1. Idle State
 Docked cleanly beneath the input container. Displays 5-hour window usage, reset countdown, and weekly quota. Automatically adapts to dark/light theme.
 
-![Idle State](./docs/images/idle.png)
+<p align="center">
+  <img src="./docs/images/idle.png" alt="Idle State">
+</p>
 
 ### 2. Generating State
 Switches to an active wave animation during streaming responses, displaying real-time generation elapsed time and word count. Automatically queries updated quotas upon completion to report exact per-turn consumption (e.g. `+3%`).
 
-![Generating State](./docs/images/generating.png)
+<p align="center">
+  <img src="./docs/images/generating.png" alt="Generating State">
+</p>
 
 ### 3. Details Panel
 Hover or click to expand the full breakdown card. Inspect 5-hour and 7-day metrics, consumption pacing reference ticks, accurate reset timestamps, and trigger manual refresh.
 
-![Details Panel](./docs/images/panel.png)
+<p align="center">
+  <img src="./docs/images/panel.png" alt="Details Panel">
+</p>
 
 ---
 
