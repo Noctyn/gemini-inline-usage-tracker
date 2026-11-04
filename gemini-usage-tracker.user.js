@@ -1,8 +1,10 @@
 // ==UserScript==
 // @name         Gemini Inline Usage Tracker
+// @name:zh-CN   Gemini 网页端用量监测与额度显示
 // @namespace    usage-tracker-of-gemini
 // @version      2.4.5
-// @description  输入框下方的原生风格额度追踪条：精准支持多账号隔离检测，等宽通栏美化面板，无闪烁平滑挂载，5 小时 / 每周用量、重置倒计时、消耗节奏预测，并在生成回复时实时反馈耗时、字数与本次消耗。
+// @description  Native-styled inline usage & quota tracker beneath Gemini input: multi-account isolation, 5-hour/weekly usage, reset countdowns, consumption pacing, and real-time generation metrics.
+// @description:zh-CN 输入框下方的原生风格额度追踪条：精准支持多账号隔离检测，等宽通栏美化面板，无闪烁平滑挂载，5 小时 / 每周用量、重置倒计时、消耗节奏预测，并在生成回复时实时反馈耗时、字数与本次消耗。
 // @author       omp
 // @match        https://gemini.google.com/*
 // @grant        none
