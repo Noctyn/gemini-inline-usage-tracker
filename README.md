@@ -7,12 +7,11 @@
 <br>
 
 **Native-styled inline usage & reset countdown tracker docked right below the Gemini chat input.**
-
+[![Greasy Fork](https://img.shields.io/badge/Greasy%20Fork-v2.4.5-red?logo=greasyfork)](https://greasyfork.org/scripts/603683-gemini-inline-usage-tracker)
+[![Direct Install](https://img.shields.io/badge/Direct%20Install-1--Click%20Install-37a77c?logo=tampermonkey&logoColor=white)](https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Gemini%20Web-4285F4?logo=google&logoColor=white)](https://gemini.google.com)
 [![Support](https://img.shields.io/badge/Userscript-Tampermonkey%20%7C%20Violentmonkey%20%7C%20ScriptCat-green.svg)](#-installation)
-[![Install](https://img.shields.io/badge/Direct%20Install-1--Click%20Install-37a77c?logo=tampermonkey&logoColor=white)](https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js)
-[![Version](https://img.shields.io/badge/Version-v2.4.5-orange.svg)](gemini-usage-tracker.user.js)
 
 [Preview](#-preview) • [Key Features](#-key-features) • [Installation](#-installation) • [Technical Details](#-technical-details) • [License](#-license)
 
@@ -64,9 +63,8 @@ Hover or click to expand the full breakdown card. Inspect 5-hour and 7-day metri
 ---
 
 ## 🚀 Installation
-
 1. Install a userscript manager in your browser: [Tampermonkey](https://www.tampermonkey.net/), [Violentmonkey](https://violentmonkey.github.io/), or [ScriptCat](https://scriptcat.org/).
-2. Click **[👉 1-Click Install Script](https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js)** to prompt installation in your userscript manager (or copy [`gemini-usage-tracker.user.js`](./gemini-usage-tracker.user.js) manually).
+2. Install the userscript via **[Greasy Fork](https://greasyfork.org/scripts/603683-gemini-inline-usage-tracker)** or click **[👉 1-Click Direct Install](https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js)** (or copy [`gemini-usage-tracker.user.js`](./gemini-usage-tracker.user.js) manually).
 3. Open or refresh [Google Gemini](https://gemini.google.com/app). The inline tracking bar will dock directly under the prompt area.
 
 ---

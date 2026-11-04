@@ -8,11 +8,11 @@
 
 **在 Google Gemini 输入框下方直接显示额度用量与重置倒计时**
 
+[![Greasy Fork](https://img.shields.io/badge/Greasy%20Fork-v2.4.5-red?logo=greasyfork)](https://greasyfork.org/zh-CN/scripts/603683-gemini-inline-usage-tracker)
+[![Direct Install](https://img.shields.io/badge/Direct%20Install-一键安装脚本-37a77c?logo=tampermonkey&logoColor=white)](https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Gemini%20Web-4285F4?logo=google&logoColor=white)](https://gemini.google.com)
 [![Support](https://img.shields.io/badge/Userscript-Tampermonkey%20%7C%20Violentmonkey%20%7C%20ScriptCat-green.svg)](#-安装)
-[![Install](https://img.shields.io/badge/Direct%20Install-一键安装脚本-37a77c?logo=tampermonkey&logoColor=white)](https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js)
-[![Version](https://img.shields.io/badge/Version-v2.4.5-orange.svg)](gemini-usage-tracker.user.js)
 
 [预览](#-预览) • [主要功能](#-主要功能) • [安装](#-安装) • [细节说明](#-细节说明) • [开源协议](#-开源协议)
 
@@ -66,7 +66,7 @@ Gemini 输出回答时，进度条会切换为流光动画，并实时统计耗�
 ## 🚀 安装
 
 1. 确保浏览器已安装脚本管理器：[Tampermonkey](https://www.tampermonkey.net/)、[Violentmonkey](https://violentmonkey.github.io/) 或 [ScriptCat](https://scriptcat.org/)。
-2. 点击 **[👉 一键安装脚本](https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js)**，在弹出的扩展页面中确认安装（也可以手动复制仓库里的 [`gemini-usage-tracker.user.js`](./gemini-usage-tracker.user.js) 新建脚本）。
+2. 通过 **[Greasy Fork](https://greasyfork.org/zh-CN/scripts/603683-gemini-inline-usage-tracker)** 安装，或点击 **[👉 一键安装脚本](https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js)** 确认安装（也可复制 [`gemini-usage-tracker.user.js`](./gemini-usage-tracker.user.js) 手动导入）。
 3. 刷新 [Google Gemini](https://gemini.google.com/app) 页面即可看到底部的监测条。
 
 ---
