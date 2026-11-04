@@ -8,6 +8,8 @@
 // @grant        none
 // @run-at       document-idle
 // @license      GPL-3.0
+// @downloadURL  https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js
+// @updateURL    https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js
 // ==/UserScript==
 
 (() => {

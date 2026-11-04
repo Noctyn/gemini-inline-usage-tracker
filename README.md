@@ -7,6 +7,7 @@
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Gemini%20Web-4285F4?logo=google&logoColor=white)](https://gemini.google.com)
 [![Support](https://img.shields.io/badge/Userscript-Tampermonkey%20%7C%20Violentmonkey%20%7C%20ScriptCat-green.svg)](#安装与使用)
+[![Install](https://img.shields.io/badge/Direct%20Install-一键安装脚本-37a77c?logo=tampermonkey&logoColor=white)](https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js)
 [![Version](https://img.shields.io/badge/Version-v2.4.5-orange.svg)](gemini-usage-tracker.user.js)
 
 [功能特性](#-功能特性) • [实图展示](#-实图展示) • [安装与使用](#-安装与使用) • [配置与高级特性](#-配置与高级特性) • [开源协议](#-开源协议)
@@ -71,9 +72,11 @@
 - [ScriptCat (脚本猫)](https://scriptcat.org/)
 
 ### 第二步：安装脚本
-1. 在脚本管理器中新建脚本。
-2. 将本仓库的 [`gemini-usage-tracker.user.js`](./gemini-usage-tracker.user.js) 内容完整复制并粘贴保存。
-3. 打开或刷新 [Google Gemini](https://gemini.google.com/app)，输入框下方即可自动显示用量条。
+你可以通过以下任意一种方式安装：
+- **方式 A（推荐，一键安装）**：点击 [👉 一键安装脚本](https://raw.githubusercontent.com/Noctyn/gemini-inline-usage-tracker/main/gemini-usage-tracker.user.js)，已安装脚本管理器的浏览器会自动弹出安装确认页面。
+- **方式 B（手动复制）**：在脚本管理器中新建脚本，将本仓库 [`gemini-usage-tracker.user.js`](./gemini-usage-tracker.user.js) 代码全文复制并粘贴保存。
+
+安装完成后，打开或刷新 [Google Gemini](https://gemini.google.com/app)，输入框下方即可无缝显示用量监测条。
 
 ---
 
