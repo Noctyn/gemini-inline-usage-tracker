@@ -2,7 +2,7 @@
 // @name         Gemini Inline Usage Tracker
 // @name:zh-CN   Gemini 网页端用量监测与额度显示
 // @namespace    usage-tracker-of-gemini
-// @version      2.4.5
+// @version      2.5.0
 // @description  Native-styled inline usage & quota tracker beneath Gemini input: multi-account isolation, 5-hour/weekly usage, reset countdowns, consumption pacing, and real-time generation metrics.
 // @description:zh-CN 输入框下方的原生风格额度追踪条：精准支持多账号隔离检测，等宽通栏美化面板，无闪烁平滑挂载，5 小时 / 每周用量、重置倒计时、消耗节奏预测，并在生成回复时实时反馈耗时、字数与本次消耗。
 // @homepageURL  https://github.com/Noctyn/gemini-inline-usage-tracker
@@ -21,6 +21,7 @@
 
     if (window.__geminiUsageTrackerLoaded) return;
     window.__geminiUsageTrackerLoaded = true;
+
     /* 全局强制 DateTimeFormat 默认采用 UTC+8 (Asia/Shanghai)，避免被代理节点时区误导 */
     const OrigDateTimeFormat = Intl.DateTimeFormat;
     Intl.DateTimeFormat = function (locales, options = {}) {
@@ -42,9 +43,10 @@
         minFetchGap: 15_000,
         warn: 60,
         danger: 80,
-        hoverOpenDelay: 120,
-        hoverCloseDelay: 260,
-        doneHold: 5_000,
+        hoverOpenDelay: 140,
+        hoverCloseDelay: 240,
+        doneHold: 5_500,
+        lastReplyTtl: 15 * 60_000,
         tickDelay: 150,
         sessionWindowMs: 5 * 3_600_000,
         weeklyWindowMs: 7 * 86_400_000,
@@ -59,21 +61,23 @@
         zh: {
             tip: 'Gemini 额度用量',
             panelTitle: '额度用量',
-            plan: (x) => `${x}`,
             refresh: '刷新用量',
+            pin: '固定面板',
+            unpin: '取消固定',
             sessionTitle: '当前会话',
             sessionWin: '5 小时窗口',
             weeklyTitle: '每周限额',
             weeklyWin: '7 天窗口',
+            elapsedShort: (p) => `时间已过 ${p}%`,
             s5h: '5小时用量',
             week: '周限额',
             resetIn: (d) => `${d}后重置`,
+            resetAtClock: (c) => `重置于 ${c}`,
             resetSoon: '即将重置',
             resetUnknown: '重置时间未知',
             exhausted: '额度已用尽',
             runOut: (d) => `按当前速度约 ${d}后耗尽`,
             elapsedTip: (p) => `当前时间窗口已过去 ${p}%`,
-            model: '模型',
             justNow: '刚刚更新',
             agoS: (n) => `${n} 秒前`,
             agoM: (n) => `${n} 分钟前`,
@@ -87,7 +91,13 @@
             syncing: '同步用量…',
             chars: (n) => `${n} 字`,
             thisReply: (p) => `本次 +${p}%`,
+            lastReply: (p) => `上次 +${p}%`,
             responding: (m) => `${m} 响应中`,
+            freePlan: 'Free 方案',
+            freeSub: '动态配额',
+            freeCap: '标准容量',
+            freeSessionDesc: '动态容量 · 按需分配',
+            freeWeeklyDesc: '可升级以获取高级模型配额',
             dur_m: (m) => `${m} 分钟`,
             dur_h: (h) => `${h} 小时`,
             dur_hm: (h, m) => `${h} 小时 ${m} 分钟`,
@@ -100,21 +110,23 @@
         en: {
             tip: 'Gemini usage',
             panelTitle: 'Usage limits',
-            plan: (x) => `${x}`,
             refresh: 'Refresh usage',
+            pin: 'Pin panel',
+            unpin: 'Unpin panel',
             sessionTitle: 'Current session',
             sessionWin: '5-hour window',
             weeklyTitle: 'Weekly limit',
             weeklyWin: '7-day window',
+            elapsedShort: (p) => `${p}% elapsed`,
             s5h: '5h usage',
             week: 'Weekly',
             resetIn: (d) => `Resets in ${d}`,
+            resetAtClock: (c) => `Resets at ${c}`,
             resetSoon: 'Resetting soon',
             resetUnknown: 'Reset time unknown',
             exhausted: 'Limit reached',
             runOut: (d) => `At this pace, runs out in ~${d}`,
             elapsedTip: (p) => `${p}% of this window has elapsed`,
-            model: 'Model',
             justNow: 'Updated just now',
             agoS: (n) => `Updated ${n}s ago`,
             agoM: (n) => `Updated ${n}m ago`,
@@ -128,7 +140,13 @@
             syncing: 'Syncing usage…',
             chars: (n) => `${n} chars`,
             thisReply: (p) => `This reply +${p}%`,
+            lastReply: (p) => `Last +${p}%`,
             responding: (m) => `${m} is responding`,
+            freePlan: 'Free plan',
+            freeSub: 'Dynamic quota',
+            freeCap: 'Standard',
+            freeSessionDesc: 'Dynamic capacity · As available',
+            freeWeeklyDesc: 'Upgrade for higher model quotas',
             dur_m: (m) => `${m}m`,
             dur_h: (h) => `${h}h`,
             dur_hm: (h, m) => `${h}h ${m}m`,
@@ -212,7 +230,7 @@
 
     function fixQuotaBannerTimezone() {
         const resetAt = S.view?.session?.resetAt ||
-                        Date.parse(S.data?.pools?.find((p) => p.poolType === 'GXU_FIVE_HOURLY')?.gxu?.windowRefreshesAt || '');
+            Date.parse(S.data?.pools?.find((p) => p.poolType === 'GXU_FIVE_HOURLY')?.gxu?.windowRefreshesAt || '');
         const utc8Str = resetAt ? fmtUtc8Clock(resetAt) : '';
 
         const nodes = document.querySelectorAll(
@@ -233,6 +251,7 @@
             }
         }
     }
+
     function resetText(ts) {
         const d = fmtDuration(ts - Date.now());
         return d ? t('resetIn', d) : t('resetSoon');
@@ -266,10 +285,14 @@
     const ICON = {
         refresh: 'M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z',
         open: 'M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z',
+        chevron: 'M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z',
+        pin: 'M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z',
+        warn: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
+        sparkle: 'M12 2c.4 5.2 4.8 9.6 10 10-5.2.4-9.6 4.8-10 10-.4-5.2-4.8-9.6-10-10 5.2-.4 9.6-4.8 10-10z',
     };
 
-    const icon = (d, size) =>
-        s('svg', { viewBox: '0 0 24 24', width: size, height: size, fill: 'currentColor', 'aria-hidden': 'true' }, s('path', { d }));
+    const icon = (d, size, cls) =>
+        s('svg', { viewBox: '0 0 24 24', width: size, height: size, fill: 'currentColor', 'aria-hidden': 'true', ...(cls ? { class: cls } : {}) }, s('path', { d }));
 
     /* ───────────────────────── 状态 ───────────────────────── */
 
@@ -280,7 +303,9 @@
         lastFetchAt: 0,
         error: null,
         inflight: null,
-        fetchGen: 0,          // 优化: 竞态保护
+        fetchGen: 0,
+        manualGen: 0,
+        manualBusy: false,
         anchor: null,
         ui: null,
         currentModel: 'Gemini',
@@ -288,11 +313,13 @@
 
         mode: 'idle',
         gen: null,
+        lastReply: null,
         liveTimer: 0,
         doneTimer: 0,
 
         open: false,
         pinned: false,
+        hovered: false,
         openTimer: 0,
         closeTimer: 0,
 
@@ -301,7 +328,6 @@
         schedHandle: 0,
     };
 
-    /* 优化: findStopBtn 缓存 */
     const stopCache = { el: null, at: 0 };
 
     /* ───────────────────────── 账号上下文 ───────────────────────── */
@@ -348,8 +374,10 @@
         if (userSwitched) {
             S.data = null;
             S.view = null;
+            S.lastReply = null;
+            S.lastFetchAt = 0;
+            S.error = null;
             force = true;
-            // 优化: 使旧请求失效，允许新请求
             S.inflight = null;
             S.fetchGen++;
         }
@@ -389,8 +417,8 @@
                     .find(Boolean);
                 if (!info) {
                     const isFreeAccount = (Array.isArray(arr) ? arr : []).some((i) => i?.data && i.data.viewer === null) ||
-                                          html.includes('DATA_FETCHING_EXCEPTION') ||
-                                          html.includes('gemini_out_of_quota_input_inline_upgrade_banner');
+                        html.includes('DATA_FETCHING_EXCEPTION') ||
+                        html.includes('gemini_out_of_quota_input_inline_upgrade_banner');
                     if (isFreeAccount) {
                         info = {
                             subscriptionTier: 'FREE',
@@ -419,17 +447,15 @@
         return S.inflight;
     }
 
-    /* 优化: 更稳健的耗尽预测 */
     function predictRunOut(pct, elapsedMs, resetAt, windowMs) {
         if (pct < 3 || pct >= 100) return null;
-        // 最小观察时长：会话窗口 15 分钟，周窗口 ~3.4 小时
         const minRatio = windowMs <= CFG.sessionWindowMs ? 0.05 : 0.02;
         if (elapsedMs < windowMs * minRatio) return null;
         const rate = pct / elapsedMs;
         if (rate <= 0) return null;
         const remainMs = (100 - pct) / rate;
         const resetRemain = resetAt - Date.now();
-        if (remainMs >= resetRemain) return null; // 不会在窗口重置前耗尽
+        if (remainMs >= resetRemain) return null;
         return remainMs;
     }
 
@@ -486,16 +512,18 @@
     --gut-text-2: var(--gem-sys-color-on-surface-variant, #444746);
     --gut-text-3: var(--gem-sys-color-outline, #747775);
     --gut-surface: var(--gem-sys-color-surface-container, #f0f4f9);
-    --gut-surface-high: var(--gem-sys-color-surface-container-high, #e9eef6);
-    --gut-track: rgba(31, 31, 31, 0.09);
+    --gut-surface-high: var(--gem-sys-color-surface-container-low, #ffffff);
+    --gut-track: rgba(31, 31, 31, 0.08);
     --gut-state: rgba(31, 31, 31, 0.06);
-    --gut-state-press: rgba(31, 31, 31, 0.1);
+    --gut-state-press: rgba(31, 31, 31, 0.11);
     --gut-divider: var(--gem-sys-color-outline-variant, rgba(196, 199, 197, 0.65));
-    --gut-border: rgba(31, 31, 31, 0.07);
-    --gut-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.05);
+    --gut-border: rgba(31, 31, 31, 0.08);
+    --gut-shadow: 0 8px 28px rgba(0, 0, 0, 0.11), 0 2px 6px rgba(0, 0, 0, 0.06);
     --gut-primary: var(--gem-sys-color-primary, #0b57d0);
+    --gut-primary-end: #1a73e8;
     --gut-primary-bg: var(--gem-sys-color-primary-container, #d3e3fd);
     --gut-primary-on-bg: var(--gem-sys-color-on-primary-container, #041e49);
+    --gut-ok-dot: #188038;
     --gut-warn: #e37400;   --gut-warn-t: #b06000;   --gut-warn-bg: rgba(249, 171, 0, 0.14);
     --gut-danger: #d93025; --gut-danger-t: #b3261e; --gut-danger-bg: rgba(217, 48, 37, 0.12);
 
@@ -519,7 +547,7 @@
     visibility: visible;
     pointer-events: auto;
     transform: none;
-    transition: opacity 0.25s cubic-bezier(0.05, 0.7, 0.1, 1), visibility 0s;
+    transition: opacity 0.25s cubic-bezier(0.05, 0.7, 0.1, 1), transform 0.25s cubic-bezier(0.05, 0.7, 0.1, 1), visibility 0s;
 }
 #gut.is-open {
     z-index: 1000 !important;
@@ -531,23 +559,27 @@
     --gut-surface: var(--gem-sys-color-surface-container, #1e1f20);
     --gut-surface-high: var(--gem-sys-color-surface-container-high, #282a2c);
     --gut-track: rgba(227, 227, 227, 0.12);
-    --gut-state: rgba(227, 227, 227, 0.06);
-    --gut-state-press: rgba(227, 227, 227, 0.11);
+    --gut-state: rgba(227, 227, 227, 0.07);
+    --gut-state-press: rgba(227, 227, 227, 0.12);
     --gut-divider: var(--gem-sys-color-outline-variant, rgba(68, 71, 70, 0.7));
-    --gut-border: rgba(255, 255, 255, 0.08);
-    --gut-shadow: 0 8px 24px rgba(0, 0, 0, 0.48), 0 2px 6px rgba(0, 0, 0, 0.32);
+    --gut-border: rgba(255, 255, 255, 0.09);
+    --gut-shadow: 0 10px 32px rgba(0, 0, 0, 0.56), 0 2px 8px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     --gut-primary: var(--gem-sys-color-primary, #a8c7fa);
+    --gut-primary-end: #7cacf8;
     --gut-primary-bg: var(--gem-sys-color-primary-container, #0842a0);
     --gut-primary-on-bg: var(--gem-sys-color-on-primary-container, #d3e3fd);
-    --gut-warn: #fdd663;   --gut-warn-t: #fdd663;   --gut-warn-bg: rgba(253, 214, 99, 0.14);
-    --gut-danger: #f28b82; --gut-danger-t: #f28b82; --gut-danger-bg: rgba(242, 139, 130, 0.14);
+    --gut-ok-dot: #81c995;
+    --gut-warn: #fdd663;   --gut-warn-t: #fdd663;   --gut-warn-bg: rgba(253, 214, 99, 0.15);
+    --gut-danger: #f28b82; --gut-danger-t: #f28b82; --gut-danger-bg: rgba(242, 139, 130, 0.15);
 }
 
-#gut [data-level="ok"]     { --lv: var(--gut-primary); --lv-t: var(--gut-text);     --lv-bg: transparent; }
-#gut [data-level="warn"]   { --lv: var(--gut-warn);    --lv-t: var(--gut-warn-t);   --lv-bg: var(--gut-warn-bg); }
-#gut [data-level="danger"] { --lv: var(--gut-danger);  --lv-t: var(--gut-danger-t); --lv-bg: var(--gut-danger-bg); }
+#gut [data-level="ok"]     { --lv: var(--gut-primary); --lv-end: var(--gut-primary-end); --lv-t: var(--gut-text);     --lv-bg: transparent; }
+#gut [data-level="warn"]   { --lv: var(--gut-warn);    --lv-end: var(--gut-warn);        --lv-t: var(--gut-warn-t);   --lv-bg: var(--gut-warn-bg); }
+#gut [data-level="danger"] { --lv: var(--gut-danger);  --lv-end: var(--gut-danger);      --lv-t: var(--gut-danger-t); --lv-bg: var(--gut-danger-bg); }
 
 #gut button { appearance: none; background: transparent; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+#gut svg { display: block; flex-shrink: 0; }
+#gut [hidden] { display: none !important; }
 #gut button:focus-visible, #gut a:focus-visible, #gut .gut-strip:focus-visible {
     outline: 2px solid var(--gut-primary);
     outline-offset: 2px;
@@ -559,6 +591,7 @@
     clip: rect(0,0,0,0); white-space: nowrap; border: 0;
 }
 
+/* ── 常驻条 ── */
 #gut .gut-strip {
     display: flex;
     flex-direction: column;
@@ -574,6 +607,7 @@
 }
 #gut .gut-strip:hover, #gut.is-open .gut-strip { background: var(--gut-state); }
 #gut .gut-strip:active { background: var(--gut-state-press); }
+#gut.is-pinned .gut-strip { background: var(--gut-state); }
 
 #gut .gut-bar {
     height: 3px;
@@ -591,31 +625,27 @@
     height: 100%;
     width: 0;
     border-radius: 999px;
-    background: var(--lv, var(--gut-primary));
-    /* 优化: 右端 M3 分割感 + 微内阴影 */
-    box-shadow: 2px 0 0 0 var(--gut-surface), inset 0 0 0 1px rgba(0, 0, 0, 0.04);
-    transition: width 0.55s cubic-bezier(0.2, 0, 0, 1), background-color 0.3s ease, filter 0.3s ease;
+    background: linear-gradient(90deg, var(--lv, var(--gut-primary)), var(--lv-end, var(--gut-primary)));
+    transition: width 0.55s cubic-bezier(0.2, 0, 0, 1), opacity 0.25s ease, background-color 0.3s ease, filter 0.3s ease;
 }
 
-/* 优化: 危险状态脉冲（生成中不干扰） */
 #gut:not(.is-generating) .gut-fill[data-level="danger"] {
     animation: gut-danger-pulse 2s ease-in-out infinite;
 }
 @keyframes gut-danger-pulse {
     0%, 100% { filter: brightness(1); }
-    50%      { filter: brightness(1.15); }
+    50%      { filter: brightness(1.16); }
 }
 
 #gut.is-generating .gut-fill {
     width: 100% !important;
+    opacity: 1 !important;
     background: linear-gradient(90deg, #4285f4 0%, #9b72cb 35%, #d96570 68%, #4285f4 100%);
     background-size: 200% 100%;
     animation: gut-flow 1.6s linear infinite;
-    box-shadow: none;
 }
 @keyframes gut-flow { to { background-position: -200% 0; } }
 
-/* 优化: 完成时闪烁反馈 */
 #gut.is-done .gut-fill {
     animation: gut-done-flash 0.7s cubic-bezier(0.2, 0, 0, 1);
 }
@@ -625,15 +655,13 @@
     100% { filter: brightness(1); }
 }
 
-/* 优化: shimmer 骨架屏 */
-#gut.is-loading .gut-fill,
+#gut.is-loading:not(.is-generating) .gut-fill,
 #gut.is-loading .gut-row-fill {
     width: 100% !important;
+    opacity: 0.45 !important;
     background: linear-gradient(90deg, var(--gut-track) 0%, var(--gut-text-3) 50%, var(--gut-track) 100%);
     background-size: 200% 100%;
-    animation: gut-shimmer 1.6s linear infinite;
-    opacity: 0.5;
-    box-shadow: none;
+    animation: gut-shimmer 1.5s linear infinite;
 }
 @keyframes gut-shimmer { to { background-position: -200% 0; } }
 
@@ -649,7 +677,7 @@
     white-space: nowrap;
 }
 #gut .gut-meta-left, #gut .gut-meta-right { display: flex; align-items: center; gap: 6px; min-width: 0; }
-#gut .gut-meta-right { flex-shrink: 0; }
+#gut .gut-meta-right { flex-shrink: 0; gap: 4px; }
 
 #gut .gut-dot {
     width: 3px; height: 3px; border-radius: 50%;
@@ -677,7 +705,6 @@
 }
 #gut .gut-strip:hover .gut-main, #gut.is-open .gut-main, #gut.is-generating .gut-main { color: var(--gut-text); }
 
-/* 优化: 常驻条语义色 */
 #gut .gut-main[data-level="warn"]   { color: var(--gut-warn-t); }
 #gut .gut-main[data-level="danger"] { color: var(--gut-danger-t); font-weight: 600; }
 
@@ -685,14 +712,27 @@
 #gut .gut-sub[data-tone="error"] { color: var(--gut-danger-t); font-weight: 500; }
 #gut .gut-sub[data-tone="delta"] { color: var(--gut-primary); font-weight: 500; }
 
+#gut .gut-plan { color: var(--gut-text-2); transition: color 0.15s ease; }
+#gut .gut-plan[data-level="warn"]   { color: var(--gut-warn-t); font-weight: 500; }
+#gut .gut-plan[data-level="danger"] { color: var(--gut-danger-t); font-weight: 600; }
 
-#gut .gut-plan { color: var(--gut-text-2); }
+#gut .gut-chevron {
+    color: var(--gut-text-3);
+    opacity: 0.75;
+    transition: transform 0.22s cubic-bezier(0.2, 0, 0, 1), opacity 0.15s ease, color 0.15s ease;
+}
+#gut .gut-strip:hover .gut-chevron { opacity: 1; color: var(--gut-text-2); }
+#gut.is-open .gut-chevron { transform: rotate(180deg); opacity: 1; color: var(--gut-text-2); }
+#gut.is-pinned .gut-chevron { color: var(--gut-primary); }
 
+/* ── 悬浮面板 ── */
 #gut .gut-panel {
     position: absolute;
-    left: 0; right: 0; width: 100%;
+    left: 2px; right: 2px; width: auto;
     bottom: calc(100% + 8px);
-    padding: 16px 20px 14px;
+    max-height: calc(100dvh - 130px);
+    overflow-y: auto;
+    padding: 16px 18px 14px;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -703,17 +743,20 @@
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transform: translateY(6px);
+    transform: translateY(8px) scale(0.985);
     transform-origin: center bottom;
-    transition: opacity 0.15s cubic-bezier(0.2, 0, 0, 1), transform 0.18s cubic-bezier(0.2, 0, 0, 1), visibility 0s linear 0.18s;
+    transition: opacity 0.16s cubic-bezier(0.2, 0, 0, 1), transform 0.2s cubic-bezier(0.2, 0, 0, 1), visibility 0s linear 0.2s;
     z-index: 1001;
 }
 #gut.is-open .gut-panel {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-    transform: none;
-    transition: opacity 0.15s cubic-bezier(0.05, 0.7, 0.1, 1), visibility 0s;
+    transform: translateY(0) scale(1);
+    transition: opacity 0.18s cubic-bezier(0.05, 0.7, 0.1, 1), transform 0.22s cubic-bezier(0.05, 0.7, 0.1, 1), visibility 0s;
+}
+#gut:not(.is-open) .gut-panel, #gut:not(.is-open) .gut-panel * {
+    pointer-events: none !important;
 }
 #gut .gut-panel::after {
     content: '';
@@ -726,10 +769,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 10px;
     margin: -2px -4px -2px 0;
 }
-#gut .gut-head-left { display: flex; align-items: center; gap: 8px; }
+#gut .gut-head-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
 #gut .gut-head-icon {
     display: inline-flex;
     align-items: center;
@@ -738,32 +787,77 @@
     flex-shrink: 0;
 }
 #gut .gut-gemini-logo { width: 20px; height: 20px; display: block; object-fit: contain; }
-#gut .gut-title { font-size: 14px; line-height: 20px; font-weight: 500; color: var(--gut-text); }
-#gut .gut-refresh {
+#gut .gut-sparkle-fallback { color: var(--gut-primary); }
+#gut .gut-title { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--gut-text); flex-shrink: 0; }
+
+#gut .gut-tier {
+    display: inline-flex;
+    align-items: center;
+    height: 19px;
+    padding: 0 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    flex-shrink: 0;
+    background: var(--gut-state);
+    color: var(--gut-text-2);
+}
+#gut .gut-tier[data-tier="PRO"] {
+    background: var(--gut-primary-bg);
+    color: var(--gut-primary-on-bg);
+}
+#gut .gut-tier[data-tier="ULTRA"] {
+    background: linear-gradient(135deg, rgba(66, 133, 244, 0.16), rgba(155, 114, 203, 0.2), rgba(217, 101, 112, 0.16));
+    color: var(--gut-text);
+    border: 1px solid rgba(155, 114, 203, 0.28);
+}
+
+#gut .gut-account {
+    font-size: 11.5px;
+    line-height: 16px;
+    color: var(--gut-text-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+#gut .gut-head-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+
+#gut .gut-icon-btn {
     width: 32px; height: 32px; border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     color: var(--gut-text-2);
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
-#gut .gut-refresh:hover { background: var(--gut-state); color: var(--gut-text); }
-#gut .gut-refresh:active { background: var(--gut-state-press); }
+#gut .gut-icon-btn:hover { background: var(--gut-state); color: var(--gut-text); }
+#gut .gut-icon-btn:active { background: var(--gut-state-press); transform: scale(0.94); }
+
+#gut .gut-pin svg { transform: rotate(35deg); transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1); }
+#gut .gut-pin[aria-pressed="true"] {
+    background: var(--gut-primary-bg);
+    color: var(--gut-primary-on-bg);
+}
+#gut .gut-pin[aria-pressed="true"] svg { transform: rotate(0deg); }
+
 #gut .gut-refresh[aria-busy="true"] svg { animation: gut-spin 0.75s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
 @keyframes gut-spin { to { transform: rotate(360deg); } }
 
+/* ── 用量卡片 ── */
 #gut .gut-rows { display: flex; flex-direction: column; gap: 10px; }
 #gut .gut-row {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 9px;
     padding: 12px 14px;
-    border-radius: 14px;
+    border-radius: 16px;
     background: var(--gut-surface);
     border: 1px solid var(--gut-border);
     transition: border-color 0.3s ease;
 }
-/* 优化: 重置临近时加柔和边框提示 */
 #gut .gut-row[data-reset="soon"] { border-color: var(--gut-warn-t); }
 
 #gut .gut-row-head {
@@ -772,33 +866,36 @@
     justify-content: space-between;
     gap: 8px;
 }
+#gut .gut-row-title-wrap { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; min-width: 0; }
 #gut .gut-row-title { font-size: 13px; font-weight: 500; line-height: 18px; color: var(--gut-text); }
-#gut .gut-row-win { margin-left: 6px; font-size: 12px; font-weight: 400; color: var(--gut-text-3); }
+#gut .gut-row-win { font-size: 12px; font-weight: 400; color: var(--gut-text-3); }
+#gut .gut-row-elapsed { font-size: 11.5px; font-weight: 400; color: var(--gut-text-3); opacity: 0.9; }
 #gut .gut-row-pct {
-    font-size: 14px;
+    font-size: 13.5px;
     line-height: 18px;
     font-weight: 600;
-    padding: 1px 6px;
-    margin: -1px -6px;
-    border-radius: 6px;
+    padding: 1px 7px;
+    margin: -1px -4px -1px 0;
+    border-radius: 8px;
     background: var(--lv-bg, transparent);
     color: var(--lv-t, var(--gut-text));
+    flex-shrink: 0;
     transition: color 0.3s, background-color 0.3s;
 }
 
 #gut .gut-row-track {
     position: relative;
-    height: 6px;
+    height: 7px;
     border-radius: 999px;
     background: var(--gut-track);
 }
 #gut .gut-row-fill {
     height: 100%;
     width: 0;
+    max-width: 100%;
     border-radius: 999px;
-    background: var(--lv, var(--gut-primary));
-    box-shadow: 2px 0 0 0 var(--gut-surface);
-    transition: width 0.55s cubic-bezier(0.2, 0, 0, 1), background-color 0.3s;
+    background: linear-gradient(90deg, var(--lv, var(--gut-primary)), var(--lv-end, var(--gut-primary)));
+    transition: width 0.55s cubic-bezier(0.2, 0, 0, 1), opacity 0.25s ease, background-color 0.3s;
 }
 #gut .gut-row-tick {
     position: absolute;
@@ -806,30 +903,61 @@
     width: 2px;
     border-radius: 999px;
     background: var(--gut-text-2);
-    box-shadow: 0 0 0 1.5px var(--gut-surface);
-    opacity: 0.7;
+    box-shadow: 0 0 0 2px var(--gut-surface);
+    opacity: 0.78;
     transform: translateX(-1px);
-    transition: left 0.55s cubic-bezier(0.2, 0, 0, 1);
+    transition: left 0.55s cubic-bezier(0.2, 0, 0, 1), width 0.15s ease, opacity 0.15s ease;
+}
+#gut .gut-row-tick::after {
+    content: '';
+    position: absolute;
+    top: -4px; bottom: -4px;
+    left: -6px; right: -6px;
+}
+#gut .gut-row-tick:hover {
+    width: 3px;
+    opacity: 1;
 }
 
 #gut .gut-row-foot {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 6px;
     font-size: 12px;
     line-height: 16px;
     color: var(--gut-text-3);
 }
-#gut .gut-row-reset { display: flex; justify-content: space-between; align-items: center; }
-/* 优化: 重置临近文字高亮 */
+#gut .gut-row-reset {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    min-height: 16px;
+}
 #gut .gut-row[data-reset="soon"] .gut-row-reset span:first-child {
     color: var(--gut-warn-t);
     font-weight: 500;
 }
-#gut .gut-row-hint { color: var(--gut-warn-t); font-weight: 500; }
-#gut .gut-row-hint:empty { display: none; }
-#gut .gut-row-hint[data-tone="danger"] { color: var(--gut-danger-t); }
 
+#gut .gut-row-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    align-self: flex-start;
+    padding: 4px 9px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    line-height: 16px;
+    font-weight: 500;
+    background: var(--gut-warn-bg);
+    color: var(--gut-warn-t);
+}
+#gut .gut-row-hint[data-tone="danger"] {
+    background: var(--gut-danger-bg);
+    color: var(--gut-danger-t);
+}
+
+/* ── 面板底部 ── */
 #gut .gut-foot {
     display: flex;
     justify-content: space-between;
@@ -840,27 +968,53 @@
     line-height: 16px;
     color: var(--gut-text-3);
 }
-#gut .gut-foot-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
-
+#gut .gut-foot-left { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
 
 #gut .gut-status, #gut .gut-link {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
+    gap: 5px;
+    padding: 4px 9px;
     margin: -4px -6px;
     border-radius: 999px;
     white-space: nowrap;
     text-decoration: none;
     transition: background-color 0.15s ease, color 0.15s ease;
 }
+#gut .gut-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 #gut .gut-status:hover, #gut .gut-link:hover { background: var(--gut-state); color: var(--gut-text); }
+
+#gut .gut-status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--gut-ok-dot);
+    flex-shrink: 0;
+    transition: background-color 0.2s ease;
+}
+#gut.is-loading .gut-status-dot {
+    background: var(--gut-primary);
+    animation: gut-pulse 1.2s ease-in-out infinite;
+}
 #gut .gut-status[data-error="1"] { color: var(--gut-danger-t); }
+#gut .gut-status[data-error="1"] .gut-status-dot { background: var(--gut-danger); animation: none; }
+
+#gut .gut-last-reply {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--gut-primary-bg);
+    color: var(--gut-primary-on-bg);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 #gut .gut-link { color: var(--gut-primary); font-weight: 500; flex-shrink: 0; }
 
 @media (max-width: 520px) {
-    #gut .gut-sub, #gut .gut-sub-dot, #gut .gut-tier { display: none !important; }
-    #gut .gut-panel { left: 0; right: 0; width: 100%; padding: 14px 14px 12px; }
+    #gut .gut-sub, #gut .gut-sub-dot, #gut .gut-account, #gut .gut-last-reply { display: none !important; }
+    #gut .gut-panel { left: 0; right: 0; padding: 14px 14px 12px; border-radius: 20px; }
 }
 @media (prefers-reduced-motion: reduce) {
     #gut *, #gut *::before, #gut *::after { transition-duration: 0.001s !important; }
@@ -868,6 +1022,7 @@
     #gut.is-generating .gut-live-dot,
     #gut.is-loading .gut-fill,
     #gut.is-loading .gut-row-fill,
+    #gut.is-loading .gut-status-dot,
     #gut:not(.is-generating) .gut-fill[data-level="danger"],
     #gut.is-done .gut-fill { animation: none !important; }
 }
@@ -883,16 +1038,21 @@
         const r = {};
         r.root = h('div', { class: 'gut-row', 'data-level': 'ok' },
             h('div', { class: 'gut-row-head' },
-                h('div', { class: 'gut-row-title' }, t(titleKey), h('span', { class: 'gut-row-win', text: t(winKey) })),
+                h('div', { class: 'gut-row-title-wrap' },
+                    h('span', { class: 'gut-row-title', text: t(titleKey) }),
+                    h('span', { class: 'gut-row-win', text: t(winKey) }),
+                    (r.elapsed = h('span', { class: 'gut-row-elapsed', hidden: true }))),
                 (r.pct = h('div', { class: 'gut-row-pct', text: '--' }))),
-            h('div', { class: 'gut-row-track', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': '0' },
+            h('div', { class: 'gut-row-track', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': '0', 'aria-label': t(titleKey) },
                 (r.fill = h('div', { class: 'gut-row-fill' })),
                 (r.tick = h('div', { class: 'gut-row-tick' }))),
             h('div', { class: 'gut-row-foot' },
                 h('div', { class: 'gut-row-reset' },
                     (r.resetLeft = h('span')),
                     (r.resetRight = h('span'))),
-                (r.hint = h('span', { class: 'gut-row-hint' }))));
+                (r.hint = h('div', { class: 'gut-row-hint', hidden: true },
+                    icon(ICON.warn, 13),
+                    (r.hintText = h('span'))))));
         r.track = r.root.querySelector('.gut-row-track');
         r.tick.style.display = 'none';
         return r;
@@ -901,11 +1061,25 @@
     function buildUI() {
         const u = {};
 
+        u.bar = h('div', {
+            class: 'gut-bar',
+            role: 'progressbar',
+            'aria-valuemin': '0',
+            'aria-valuemax': '100',
+            'aria-valuenow': '0',
+            'aria-label': t('s5h'),
+        }, (u.fill = h('div', { class: 'gut-fill', 'data-level': 'ok' })));
+
         u.strip = h('div', {
-            class: 'gut-strip', role: 'button', tabindex: '0',
-            'aria-haspopup': 'dialog', 'aria-expanded': 'false', 'aria-label': t('tip'),
+            class: 'gut-strip',
+            role: 'button',
+            tabindex: '0',
+            'aria-haspopup': 'dialog',
+            'aria-expanded': 'false',
+            'aria-controls': 'gut-panel',
+            'aria-label': t('tip'),
         },
-            h('div', { class: 'gut-bar' }, (u.fill = h('div', { class: 'gut-fill', 'data-level': 'ok' }))),
+            u.bar,
             h('div', { class: 'gut-meta' },
                 h('div', { class: 'gut-meta-left' },
                     h('span', { class: 'gut-live-dot' }),
@@ -913,35 +1087,60 @@
                     (u.subDot = h('span', { class: 'gut-dot gut-sub-dot' })),
                     (u.sub = h('span', { class: 'gut-sub' }))),
                 h('div', { class: 'gut-meta-right' },
-                    (u.plan = h('span', { class: 'gut-plan' })))));
+                    (u.plan = h('span', { class: 'gut-plan', 'data-level': 'ok' })),
+                    icon(ICON.chevron, 14, 'gut-chevron'))));
 
         u.rows = {
             session: buildRow('sessionTitle', 'sessionWin'),
             weekly: buildRow('weeklyTitle', 'weeklyWin'),
         };
 
-        u.refreshBtn = h('button', { class: 'gut-refresh', type: 'button', title: t('refresh'), 'aria-label': t('refresh'), 'aria-busy': 'false' },
-            icon(ICON.refresh, 18));
+        u.pinBtn = h('button', {
+            class: 'gut-icon-btn gut-pin',
+            type: 'button',
+            title: t('pin'),
+            'aria-label': t('pin'),
+            'aria-pressed': 'false',
+        }, icon(ICON.pin, 16));
 
-        u.panel = h('div', { class: 'gut-panel', role: 'dialog', 'aria-label': t('panelTitle') },
+        u.refreshBtn = h('button', {
+            class: 'gut-icon-btn gut-refresh',
+            type: 'button',
+            title: t('refresh'),
+            'aria-label': t('refresh'),
+            'aria-busy': 'false',
+        }, icon(ICON.refresh, 18));
+
+        const logoImg = h('img', {
+            class: 'gut-gemini-logo',
+            src: 'https://www.gstatic.com/lamda/images/gemini_sparkle_aurora_33f86dc0c0257da337c63.svg',
+            width: 20, height: 20, alt: 'Gemini',
+        });
+        const logoFallback = icon(ICON.sparkle, 18, 'gut-sparkle-fallback');
+        logoFallback.setAttribute('hidden', '');
+        logoImg.addEventListener('error', () => {
+            logoImg.setAttribute('hidden', '');
+            logoFallback.removeAttribute('hidden');
+        }, { once: true });
+
+        u.panel = h('div', { id: 'gut-panel', class: 'gut-panel', role: 'dialog', 'aria-label': t('panelTitle') },
             h('div', { class: 'gut-head' },
                 h('div', { class: 'gut-head-left' },
-                    h('span', { class: 'gut-head-icon' },
-                        h('img', {
-                            class: 'gut-gemini-logo',
-                            src: 'https://www.gstatic.com/lamda/images/gemini_sparkle_aurora_33f86dc0c0257da337c63.svg',
-                            width: 20, height: 20, alt: 'Gemini',
-                        })),
-                    h('span', { class: 'gut-title', text: t('panelTitle') })),
-                u.refreshBtn),
+                    h('span', { class: 'gut-head-icon' }, logoImg, logoFallback),
+                    h('span', { class: 'gut-title', text: t('panelTitle') }),
+                    (u.tierBadge = h('span', { class: 'gut-tier', hidden: true })),
+                    (u.account = h('span', { class: 'gut-account', hidden: true }))),
+                h('div', { class: 'gut-head-actions' }, u.pinBtn, u.refreshBtn)),
             h('div', { class: 'gut-rows' }, u.rows.session.root, u.rows.weekly.root),
             h('div', { class: 'gut-foot' },
                 h('div', { class: 'gut-foot-left' },
-                    (u.status = h('button', { class: 'gut-status', type: 'button', title: t('refresh') }))),
+                    (u.status = h('button', { class: 'gut-status', type: 'button', title: t('refresh') },
+                        h('span', { class: 'gut-status-dot' }),
+                        (u.statusText = h('span')))),
+                    (u.lastReplyEl = h('span', { class: 'gut-last-reply', hidden: true }))),
                 (u.link = h('a', { class: 'gut-link', href: '/usage', target: '_blank', rel: 'noopener' },
                     h('span', { text: t('details') }), icon(ICON.open, 12)))));
 
-        // 优化: 屏幕阅读器播报
         u.live = h('div', { class: 'gut-sr-only', 'aria-live': 'polite', 'aria-atomic': 'true' });
 
         u.root = h('div', { id: ID, class: 'is-loading' }, u.strip, u.panel, u.live);
@@ -949,14 +1148,16 @@
         /* 交互 */
         u.root.addEventListener('pointerenter', (e) => {
             if (e.pointerType === 'touch') return;
+            S.hovered = true;
             clearTimeout(S.closeTimer);
-            if (!S.open) {
+            if (!S.open && !e.buttons) {
                 clearTimeout(S.openTimer);
                 S.openTimer = setTimeout(openPanel, CFG.hoverOpenDelay);
             }
         });
         u.root.addEventListener('pointerleave', (e) => {
             if (e.pointerType === 'touch') return;
+            S.hovered = false;
             clearTimeout(S.openTimer);
             if (S.open && !S.pinned) S.closeTimer = setTimeout(closePanel, CFG.hoverCloseDelay);
         });
@@ -967,15 +1168,48 @@
                 togglePin();
             }
         });
-        u.refreshBtn.addEventListener('click', async () => {
-            const t0 = Date.now();
-            u.refreshBtn.setAttribute('aria-busy', 'true');
-            await refresh(true);
-            setTimeout(() => u.refreshBtn.setAttribute('aria-busy', 'false'), Math.max(0, 600 - (Date.now() - t0)));
+        u.pinBtn.addEventListener('click', () => {
+            if (!S.pinned) {
+                setPinned(true);
+            } else {
+                setPinned(false);
+                if (!S.hovered) closePanel();
+            }
         });
-        u.status.addEventListener('click', () => refresh(true));
+        u.refreshBtn.addEventListener('click', triggerManualRefresh);
+        u.status.addEventListener('click', triggerManualRefresh);
 
         return u;
+    }
+
+    async function triggerManualRefresh() {
+        const u = S.ui;
+        if (!u || S.manualBusy) return;
+        S.manualBusy = true;
+        const myGen = ++S.manualGen;
+        const t0 = Date.now();
+        u.refreshBtn.setAttribute('aria-busy', 'true');
+        if (S.error || !S.data) setText(u.statusText, t('loading'));
+        try {
+            await refresh(true);
+        } finally {
+            const left = Math.max(0, 550 - (Date.now() - t0));
+            setTimeout(() => {
+                if (myGen !== S.manualGen) return;
+                S.manualBusy = false;
+                S.ui?.refreshBtn.setAttribute('aria-busy', 'false');
+            }, left);
+        }
+    }
+
+    function setPinned(val) {
+        S.pinned = Boolean(val);
+        if (!S.ui) return;
+        S.ui.root.classList.toggle('is-pinned', S.pinned);
+        S.ui.pinBtn.setAttribute('aria-pressed', String(S.pinned));
+        const label = S.pinned ? t('unpin') : t('pin');
+        S.ui.pinBtn.setAttribute('title', label);
+        S.ui.pinBtn.setAttribute('aria-label', label);
     }
 
     function openPanel() {
@@ -990,74 +1224,99 @@
         if (Date.now() - S.lastFetchAt > CFG.hoverRefreshGap) refresh(true);
     }
 
-    function closePanel() {
+    function closePanel(restoreFocus = false) {
         clearTimeout(S.openTimer);
         clearTimeout(S.closeTimer);
         S.open = false;
-        S.pinned = false;
+        setPinned(false);
         if (!S.ui) return;
         S.ui.root.classList.remove('is-open');
         S.ui.strip.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) S.ui.strip.focus({ preventScroll: true });
     }
 
     function togglePin() {
-        if (S.open && S.pinned) closePanel();
-        else { S.pinned = true; openPanel(); }
+        if (S.open && S.pinned) {
+            closePanel();
+        } else {
+            setPinned(true);
+            openPanel();
+        }
     }
 
     /* ───────────────────────── 渲染 ───────────────────────── */
+
+    function extractCleanText(el) {
+        if (!el) return '';
+        const clone = el.cloneNode(true);
+        for (const trash of clone.querySelectorAll('mat-icon, svg, [aria-hidden="true"], .mat-mdc-button-touch-target')) {
+            trash.remove();
+        }
+        return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+    }
 
     function detectCurrentModel() {
         const now = Date.now();
         if (now - S.modelCheckAt < 2000) return;
         S.modelCheckAt = now;
         const btn = $('button.input-area-switch') || $('[data-test-id="bard-mode-menu-button"]');
-        const txt = (btn?.innerText ?? btn?.textContent)?.replace(/\s+/g, ' ').trim();
+        const txt = extractCleanText(btn) || (btn?.innerText ?? btn?.textContent)?.replace(/\s+/g, ' ').trim();
         if (txt && txt !== S.currentModel) S.currentModel = txt;
     }
 
-    function renderRow(row, p, kind) {
+    function renderRow(row, p, kind, view) {
+        if (view && !view.isFree && !p) {
+            row.root.hidden = true;
+            return;
+        }
+        row.root.hidden = false;
+
         if (p?.isFree) {
             row.root.dataset.level = 'ok';
             setText(row.pct, 'Free');
             row.fill.style.width = '0%';
+            row.fill.style.opacity = '0';
             row.track.setAttribute('aria-valuenow', '0');
+            row.elapsed.hidden = true;
             row.tick.style.display = 'none';
             row.root.dataset.reset = '';
-            setText(row.resetLeft, kind === 'session' ? '动态容量 · 按需分配' : '可升级以获取高级模型配额');
+            setText(row.resetLeft, kind === 'session' ? t('freeSessionDesc') : t('freeWeeklyDesc'));
             setText(row.resetRight, '');
-            setText(row.hint, '');
+            row.hint.hidden = true;
             return;
         }
 
+        const pctVal = p ? p.pct : 0;
         row.root.dataset.level = p ? p.level : 'ok';
-        setText(row.pct, p ? `${fmtPct(p.pct)}%` : '--');
-        row.fill.style.width = `${p ? p.pct : 0}%`;
-
-        // 优化: progressbar 语义值
-        row.track.setAttribute('aria-valuenow', String(Math.round(p ? p.pct : 0)));
+        setText(row.pct, p ? `${fmtPct(pctVal)}%` : '--');
+        row.fill.style.width = `${pctVal}%`;
+        row.fill.style.opacity = pctVal > 0 ? '1' : '0';
+        row.track.setAttribute('aria-valuenow', String(Math.round(pctVal)));
 
         if (p && p.elapsed != null) {
+            const elapsedPct = Math.round(p.elapsed * 100);
             row.tick.style.display = '';
             row.tick.style.left = `${p.elapsed * 100}%`;
-            row.tick.title = t('elapsedTip', Math.round(p.elapsed * 100));
+            row.tick.title = t('elapsedTip', elapsedPct);
+            row.elapsed.hidden = false;
+            setText(row.elapsed, `· ${t('elapsedShort', elapsedPct)}`);
         } else {
             row.tick.style.display = 'none';
+            row.elapsed.hidden = true;
         }
 
-        // 优化: 重置临近标记
         const soon = p?.resetAt && (p.resetAt - Date.now()) < 5 * 60 * 1000 && p.resetAt > Date.now();
         row.root.dataset.reset = soon ? 'soon' : '';
 
         if (p?.resetAt) {
             const at = kind === 'session' ? fmtClock(p.resetAt) : fmtDateTime(p.resetAt);
             setText(row.resetLeft, resetText(p.resetAt));
-            setText(row.resetRight, at);
+            setText(row.resetRight, t('resetAtClock', at));
         } else if (p) {
             setText(row.resetLeft, t('resetUnknown'));
             setText(row.resetRight, '');
         } else {
-            setText(row.resetLeft, '');
+            setText(row.resetLeft, S.error ? t('failedShort') : t('loading'));
             setText(row.resetRight, '');
         }
 
@@ -1073,20 +1332,24 @@
                 urgent = p.runOutMs < 30 * 60 * 1000;
             }
         }
-        setText(row.hint, hint);
-        row.hint.dataset.tone = urgent ? 'danger' : 'warn';
+        if (hint) {
+            row.hint.hidden = false;
+            row.hint.dataset.tone = urgent ? 'danger' : 'warn';
+            setText(row.hintText, hint);
+        } else {
+            row.hint.hidden = true;
+        }
     }
 
-    /* 优化: aria-live 播报，仅等级变化时触发 */
     let lastAnnouncedLevel = '';
     function announceLevel(level, pct) {
         if (!S.ui?.live || level === lastAnnouncedLevel) return;
         lastAnnouncedLevel = level;
         const p = Math.round(pct);
-        if (level === 'danger') setText(S.ui.live, t('announceDanger', p));
+        if (pct >= 100) setText(S.ui.live, t('announceExhausted'));
+        else if (level === 'danger') setText(S.ui.live, t('announceDanger', p));
         else if (level === 'warn') setText(S.ui.live, t('announceWarn', p));
-        else if (pct >= 100) setText(S.ui.live, t('announceExhausted'));
-        else setText(S.ui.live, t('s5h') + ' ' + p + '%');
+        else setText(S.ui.live, `${t('s5h')} ${p}%`);
     }
 
     function render() {
@@ -1097,17 +1360,33 @@
         const ses = v?.session;
         const wk = v?.weekly;
 
-        u.root.classList.toggle('is-loading', !S.data && !S.error);
+        const isLoading = !S.data && !S.error;
+        u.root.classList.toggle('is-loading', isLoading);
 
-        u.fill.style.width = `${ses ? ses.pct : 0}%`;
+        const sesPct = ses ? ses.pct : 0;
+        u.fill.style.width = `${sesPct}%`;
+        u.fill.style.opacity = sesPct > 0 ? '1' : '0';
         u.fill.dataset.level = ses?.level || 'ok';
-        // 优化: 常驻条也带 progressbar 语义
-        u.strip.setAttribute('aria-valuenow', String(Math.round(ses?.pct || 0)));
+        u.bar.setAttribute('aria-valuenow', String(Math.round(sesPct)));
 
+        if (v?.tier && TIER_LABEL[v.tier]) {
+            u.tierBadge.hidden = false;
+            u.tierBadge.dataset.tier = v.tier;
+            setText(u.tierBadge, TIER_LABEL[v.tier]);
+        } else {
+            u.tierBadge.hidden = true;
+        }
 
-        renderRow(u.rows.session, ses, 'session');
-        renderRow(u.rows.weekly, wk, 'weekly');
+        if (S.user?.email) {
+            u.account.hidden = false;
+            setText(u.account, S.user.email);
+            u.account.title = S.user.email;
+        } else {
+            u.account.hidden = true;
+        }
 
+        renderRow(u.rows.session, ses, 'session', v);
+        renderRow(u.rows.weekly, wk, 'weekly', v);
 
         if (u.link && S.user?.usagePath) u.link.href = S.user.usagePath;
 
@@ -1119,15 +1398,22 @@
         else if (ago < 60_000) status = t('agoS', Math.round(ago / 1000));
         else if (ago < 3_600_000) status = t('agoM', Math.round(ago / 60_000));
         else status = t('agoH', Math.round(ago / 3_600_000));
-        setText(u.status, status);
+        setText(u.statusText, status);
         u.status.dataset.error = S.error ? '1' : '';
+
+        const showLastReply = S.lastReply && S.lastReply.delta > 0.04 && (Date.now() - S.lastReply.at < CFG.lastReplyTtl);
+        if (showLastReply) {
+            u.lastReplyEl.hidden = false;
+            setText(u.lastReplyEl, t('lastReply', fmtPct(S.lastReply.delta)));
+        } else {
+            u.lastReplyEl.hidden = true;
+        }
 
         u.strip.setAttribute('aria-label',
             `${t('tip')}: ${t('s5h')} ${ses ? fmtPct(ses.pct) : '--'}%, ${t('week')} ${wk ? fmtPct(wk.pct) : '--'}%`);
 
         paintMeta();
 
-        // 优化: 无障碍播报
         if (S.error) announceLevel('danger', 0);
         else if (ses) announceLevel(ses.pct >= 100 ? 'danger' : ses.level, ses.pct);
     }
@@ -1140,29 +1426,59 @@
         const wk = v?.weekly;
         const g = S.gen;
 
-        let main, sub = '', tier = '', plan, tone = '', mainLevel = '';
+        let main, sub = '', plan = '', tone = '', mainLevel = '', planLevel = 'ok';
 
         if (S.mode === 'live') {
             const sec = Math.floor((Date.now() - g.start) / 1000);
             main = `${t('generating')} ${fmtElapsed(sec)}`;
             sub = g.chars ? t('chars', g.chars.toLocaleString()) : '';
             plan = t('responding', S.currentModel);
-        } else {
-            if (S.mode === 'done') {
-                const sec = Math.max(1, Math.round((g.end - g.start) / 1000));
-                main = `${t('done')} ${fmtElapsed(sec)}`;
-                if (g.syncing) sub = t('syncing');
-                else if (g.delta > 0.04) { sub = t('thisReply', fmtPct(g.delta)); tone = 'delta'; }
-            } else if (v?.isFree) {
-                main = 'Free 方案';
-                sub = '动态配额';
-                plan = '标准容量';
+        } else if (S.mode === 'done') {
+            const sec = Math.max(1, Math.round((g.end - g.start) / 1000));
+            const charsStr = g.chars ? t('chars', g.chars.toLocaleString()) : '';
+            main = `${t('done')} ${fmtElapsed(sec)}`;
+            if (g.syncing) {
+                sub = charsStr ? `${charsStr} · ${t('syncing')}` : t('syncing');
+            } else if (g.delta > 0.04) {
+                sub = charsStr ? `${charsStr} · ${t('thisReply', fmtPct(g.delta))}` : t('thisReply', fmtPct(g.delta));
+                tone = 'delta';
             } else {
-                main = `${t('s5h')} ${ses ? fmtPct(ses.pct) : '--'}%`;
-                if (S.error) { sub = t('failedShort'); tone = 'error'; }
-                else sub = ses?.resetAt ? resetText(ses.resetAt) : '';
-                mainLevel = S.error ? 'danger' : (ses?.level || 'ok');
-                plan = `${t('week')} ${wk ? fmtPct(wk.pct) : '--'}%`;
+                sub = charsStr;
+            }
+            if (v?.isFree) {
+                plan = t('freeCap');
+            } else if (ses) {
+                plan = `${t('s5h')} ${fmtPct(ses.pct)}%`;
+                planLevel = ses.level || 'ok';
+            } else if (wk) {
+                plan = `${t('week')} ${fmtPct(wk.pct)}%`;
+                planLevel = wk.level || 'ok';
+            }
+        } else if (!S.data && !S.error) {
+            main = t('loading');
+            sub = '';
+            plan = '';
+        } else if (v?.isFree) {
+            main = t('freePlan');
+            sub = S.error ? t('failedShort') : t('freeSub');
+            if (S.error) { tone = 'error'; mainLevel = 'danger'; }
+            plan = t('freeCap');
+        } else {
+            main = ses ? `${t('s5h')} ${fmtPct(ses.pct)}%` : `${t('s5h')} --%`;
+            if (S.error) {
+                sub = t('failedShort');
+                tone = 'error';
+            } else {
+                sub = ses?.resetAt ? resetText(ses.resetAt) : '';
+            }
+            mainLevel = S.error ? 'danger' : (ses?.level || 'ok');
+            if (wk) {
+                plan = `${t('week')} ${fmtPct(wk.pct)}%`;
+                planLevel = wk.level || 'ok';
+            } else if (v?.tier && TIER_LABEL[v.tier]) {
+                plan = TIER_LABEL[v.tier];
+            } else {
+                plan = `${t('week')} --%`;
             }
         }
 
@@ -1170,6 +1486,7 @@
         setText(u.sub, sub);
         setText(u.plan, plan);
         u.main.dataset.level = mainLevel;
+        u.plan.dataset.level = planLevel;
         u.sub.hidden = !sub;
         u.subDot.hidden = !sub;
         if (u.sub.dataset.tone !== tone) u.sub.dataset.tone = tone;
@@ -1196,7 +1513,6 @@
     ].join(',');
 
     function findStopBtn() {
-        // 优化: 250ms 缓存，避免高频 DOM 查询
         const now = Date.now();
         if (now - stopCache.at < 250) return stopCache.el;
         let found = null;
@@ -1209,7 +1525,8 @@
     }
 
     function countLastResponse() {
-        const nodes = document.querySelectorAll('message-content');
+        let nodes = document.querySelectorAll('model-response message-content');
+        if (!nodes.length) nodes = document.querySelectorAll('message-content');
         const last = nodes[nodes.length - 1];
         return last ? last.textContent.trim().length : 0;
     }
@@ -1256,6 +1573,7 @@
         const g = S.gen;
         if (!g) return;
         g.end = Date.now();
+        g.chars = Math.max(g.chars, countLastResponse());
         g.syncing = true;
         S.mode = 'done';
         S.ui.root.classList.remove('is-generating');
@@ -1269,7 +1587,6 @@
         const alive = () => S.gen === g && S.mode === 'done';
         const before = g.basePct;
 
-        // 优化: 4 次递增轮询，更好捕捉服务端延迟更新
         for (let attempt = 0; attempt < 4; attempt++) {
             const wait = attempt === 0 ? 1500 : 2500 + attempt * 1500;
             await sleep(wait);
@@ -1286,6 +1603,9 @@
         }
 
         g.syncing = false;
+        if (g.delta > 0.04) {
+            S.lastReply = { delta: g.delta, chars: g.chars, at: Date.now() };
+        }
         render();
 
         clearTimeout(S.doneTimer);
@@ -1429,10 +1749,15 @@
         window.addEventListener('focus', () => refresh(false), { passive: true });
 
         document.addEventListener('pointerdown', (e) => {
-            if (S.open && S.ui && !S.ui.root.contains(e.target)) closePanel();
+            if (!S.open || !S.ui) return;
+            const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+            if (!path.includes(S.ui.root) && !S.ui.root.contains(e.target)) closePanel();
         }, true);
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && S.open) closePanel();
+            if (e.key === 'Escape' && S.open) {
+                const focusInside = S.ui?.root.contains(document.activeElement);
+                closePanel(focusInside);
+            }
         }, true);
 
         matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', syncTheme);
