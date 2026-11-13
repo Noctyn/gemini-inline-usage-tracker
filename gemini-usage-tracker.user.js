@@ -2,12 +2,13 @@
 // @name         Gemini Inline Usage Tracker
 // @name:zh-CN   Gemini 网页端用量监测与额度显示
 // @namespace    usage-tracker-of-gemini
-// @version      2.5.0
+// @version      2.5.2
 // @description  Native-styled inline usage & quota tracker beneath Gemini input: multi-account isolation, 5-hour/weekly usage, reset countdowns, consumption pacing, and real-time generation metrics.
 // @description:zh-CN 输入框下方的原生风格额度追踪条：精准支持多账号隔离检测，等宽通栏美化面板，无闪烁平滑挂载，5 小时 / 每周用量、重置倒计时、消耗节奏预测，并在生成回复时实时反馈耗时、字数与本次消耗。
 // @homepageURL  https://github.com/Noctyn/gemini-inline-usage-tracker
 // @supportURL   https://github.com/Noctyn/gemini-inline-usage-tracker/issues
 // @author       omp
+// @icon         data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='64'%20height='64'%20viewBox='0%200%2064%2064'%3E%3Cdefs%3E%3ClinearGradient%20id='bg'%20x1='0'%20y1='0'%20x2='64'%20y2='64'%20gradientUnits='userSpaceOnUse'%3E%3Cstop%20offset='0'%20stop-color='%23191f36'/%3E%3Cstop%20offset='1'%20stop-color='%230d101c'/%3E%3C/linearGradient%3E%3CradialGradient%20id='gl'%20cx='0.5'%20cy='0.46'%20r='0.48'%3E%3Cstop%20offset='0'%20stop-color='%234285f4'%20stop-opacity='0.28'/%3E%3Cstop%20offset='0.55'%20stop-color='%239b72cb'%20stop-opacity='0.1'/%3E%3Cstop%20offset='1'%20stop-color='%230d101c'%20stop-opacity='0'/%3E%3C/radialGradient%3E%3ClinearGradient%20id='gr'%20x1='14'%20y1='48'%20x2='52'%20y2='20'%20gradientUnits='userSpaceOnUse'%3E%3Cstop%20offset='0'%20stop-color='%234285f4'/%3E%3Cstop%20offset='0.52'%20stop-color='%239b72cb'/%3E%3Cstop%20offset='1'%20stop-color='%23d96570'/%3E%3C/linearGradient%3E%3ClinearGradient%20id='sp'%20x1='20'%20y1='20'%20x2='44'%20y2='44'%20gradientUnits='userSpaceOnUse'%3E%3Cstop%20offset='0'%20stop-color='%237db4ff'/%3E%3Cstop%20offset='0.52'%20stop-color='%23b78cff'/%3E%3Cstop%20offset='1'%20stop-color='%23f28b82'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20x='2'%20y='2'%20width='60'%20height='60'%20rx='16'%20fill='url(%23bg)'/%3E%3Ccircle%20cx='32'%20cy='30'%20r='24'%20fill='url(%23gl)'/%3E%3Crect%20x='2.75'%20y='2.75'%20width='58.5'%20height='58.5'%20rx='15.25'%20fill='none'%20stroke='%23ffffff'%20stroke-opacity='0.12'%20stroke-width='1.5'/%3E%3Cpath%20d='M17.15%2046.85A21%2021%200%201%201%2046.85%2046.85'%20fill='none'%20stroke='%23ffffff'%20stroke-opacity='0.14'%20stroke-width='4.5'%20stroke-linecap='round'/%3E%3Cpath%20d='M17.15%2046.85A21%2021%200%201%201%2051.4%2023.96'%20fill='none'%20stroke='url(%23gr)'%20stroke-width='4.5'%20stroke-linecap='round'/%3E%3Ccircle%20cx='51.4'%20cy='23.96'%20r='2.8'%20fill='%23ffffff'/%3E%3Cpath%20d='M32%2019.5C32%2028%2036%2032%2044.5%2032C36%2032%2032%2036%2032%2044.5C32%2036%2028%2032%2019.5%2032C28%2032%2032%2028%2032%2019.5Z'%20fill='url(%23sp)'/%3E%3C/svg%3E
 // @match        https://gemini.google.com/*
 // @grant        none
 // @run-at       document-idle
@@ -41,6 +42,7 @@
         pollInterval: 60_000,
         hoverRefreshGap: 30_000,
         minFetchGap: 15_000,
+        fetchTimeout: 12_000,
         warn: 60,
         danger: 80,
         hoverOpenDelay: 140,
@@ -228,23 +230,38 @@
         return `${timeStr} (UTC+8)`;
     }
 
+    let lastBannerCheckAt = 0;
+    let lastBannerRefreshAt = 0;
     function fixQuotaBannerTimezone() {
+        const now = Date.now();
+        if (now - lastBannerCheckAt < 400) return;
+        lastBannerCheckAt = now;
+
+        const containers = document.querySelectorAll('.input-area-container, [class*="banner"]');
+        if (!containers.length) return;
+
         const resetAt = S.view?.session?.resetAt ||
             Date.parse(S.data?.pools?.find((p) => p.poolType === 'GXU_FIVE_HOURLY')?.gxu?.windowRefreshesAt || '');
         const utc8Str = resetAt ? fmtUtc8Clock(resetAt) : '';
 
-        const nodes = document.querySelectorAll(
-            'input-area-v2 *, .input-area-container *, fieldset *, [class*="banner"] *'
-        );
-
-        for (const el of nodes) {
-            if (el.children.length === 0 && el.textContent) {
-                const txt = el.textContent.trim();
-                if (/^(?:用量)?限额将在.+重置$/.test(txt)) {
-                    if (txt.includes('UTC+8')) continue;
+        for (const container of containers) {
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT, {
+                acceptNode(el) {
+                    if (el.matches('#gut, rich-textarea, [contenteditable="true"], textarea')) {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                    return el.children.length === 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+                },
+            });
+            let el;
+            while ((el = walker.nextNode())) {
+                const txt = el.textContent?.trim();
+                if (!txt || !txt.endsWith('重置')) continue;
+                if (/^(?:用量)?限额将在.+重置$/.test(txt) && !txt.includes('UTC+8')) {
                     if (utc8Str) {
                         el.textContent = `用量限额将在 ${utc8Str} 重置`;
-                    } else {
+                    } else if (!S.inflight && !S.view?.isFree && now - lastBannerRefreshAt > 10_000) {
+                        lastBannerRefreshAt = now;
                         refresh(true);
                     }
                 }
@@ -290,6 +307,10 @@
         warn: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
         sparkle: 'M12 2c.4 5.2 4.8 9.6 10 10-5.2.4-9.6 4.8-10 10-.4-5.2-4.8-9.6-10-10 5.2-.4 9.6-4.8 10-10z',
     };
+
+    const PANEL_ICON_URI = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 64 64"><defs><linearGradient id="gr" x1="12" y1="50" x2="54" y2="18" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4285f4"/><stop offset="0.52" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient></defs><path d="M15.03 48.97A24 24 0 1 1 48.97 48.97" fill="none" stroke="#80868b" stroke-opacity="0.24" stroke-width="6" stroke-linecap="round"/><path d="M15.03 48.97A24 24 0 1 1 54.17 22.82" fill="none" stroke="url(#gr)" stroke-width="6" stroke-linecap="round"/><circle cx="54.17" cy="22.82" r="3.6" fill="#d96570"/><path d="M32 18C32 27.5 36.5 32 46 32C36.5 32 32 36.5 32 46C32 36.5 27.5 32 18 32C27.5 32 32 27.5 32 18Z" fill="url(#gr)"/></svg>`
+    );
 
     const icon = (d, size, cls) =>
         s('svg', { viewBox: '0 0 24 24', width: size, height: size, fill: 'currentColor', 'aria-hidden': 'true', ...(cls ? { class: cls } : {}) }, s('path', { d }));
@@ -389,8 +410,10 @@
         const targetUrl = S.user?.usagePath || '/usage';
 
         S.inflight = (async () => {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), CFG.fetchTimeout);
             try {
-                const res = await fetch(targetUrl, { credentials: 'include' });
+                const res = await fetch(targetUrl, { credentials: 'include', signal: ctrl.signal });
                 if (myGen !== S.fetchGen) return S.data;
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const html = await res.text();
@@ -436,9 +459,10 @@
                 S.error = null;
             } catch (err) {
                 if (myGen !== S.fetchGen) return S.data;
-                S.error = String(err?.message || err);
+                S.error = err?.name === 'AbortError' ? 'Timeout' : String(err?.message || err);
                 console.warn('[Gemini Usage Tracker] fetchUsage error:', err);
             } finally {
+                clearTimeout(timer);
                 if (myGen === S.fetchGen) S.inflight = null;
             }
             return S.data;
@@ -626,7 +650,7 @@
     width: 0;
     border-radius: 999px;
     background: linear-gradient(90deg, var(--lv, var(--gut-primary)), var(--lv-end, var(--gut-primary)));
-    transition: width 0.55s cubic-bezier(0.2, 0, 0, 1), opacity 0.25s ease, background-color 0.3s ease, filter 0.3s ease;
+    transition: width 0.55s cubic-bezier(0.2, 0, 0, 1), min-width 0.3s ease, opacity 0.25s ease, background-color 0.3s ease, filter 0.3s ease;
 }
 
 #gut:not(.is-generating) .gut-fill[data-level="danger"] {
@@ -639,6 +663,7 @@
 
 #gut.is-generating .gut-fill {
     width: 100% !important;
+    min-width: 0 !important;
     opacity: 1 !important;
     background: linear-gradient(90deg, #4285f4 0%, #9b72cb 35%, #d96570 68%, #4285f4 100%);
     background-size: 200% 100%;
@@ -658,6 +683,7 @@
 #gut.is-loading:not(.is-generating) .gut-fill,
 #gut.is-loading .gut-row-fill {
     width: 100% !important;
+    min-width: 0 !important;
     opacity: 0.45 !important;
     background: linear-gradient(90deg, var(--gut-track) 0%, var(--gut-text-3) 50%, var(--gut-track) 100%);
     background-size: 200% 100%;
@@ -676,8 +702,8 @@
     color: var(--gut-text-3);
     white-space: nowrap;
 }
-#gut .gut-meta-left, #gut .gut-meta-right { display: flex; align-items: center; gap: 6px; min-width: 0; }
-#gut .gut-meta-right { flex-shrink: 0; gap: 4px; }
+#gut .gut-meta-left { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
+#gut .gut-meta-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; max-width: 45%; }
 
 #gut .gut-dot {
     width: 3px; height: 3px; border-radius: 50%;
@@ -699,8 +725,7 @@
 #gut .gut-main {
     color: var(--gut-text-2);
     font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex-shrink: 0;
     transition: color 0.15s ease;
 }
 #gut .gut-strip:hover .gut-main, #gut.is-open .gut-main, #gut.is-generating .gut-main { color: var(--gut-text); }
@@ -708,11 +733,17 @@
 #gut .gut-main[data-level="warn"]   { color: var(--gut-warn-t); }
 #gut .gut-main[data-level="danger"] { color: var(--gut-danger-t); font-weight: 600; }
 
-#gut .gut-sub { overflow: hidden; text-overflow: ellipsis; }
+#gut .gut-sub { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex-shrink: 1; }
 #gut .gut-sub[data-tone="error"] { color: var(--gut-danger-t); font-weight: 500; }
 #gut .gut-sub[data-tone="delta"] { color: var(--gut-primary); font-weight: 500; }
 
-#gut .gut-plan { color: var(--gut-text-2); transition: color 0.15s ease; }
+#gut .gut-plan {
+    color: var(--gut-text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    transition: color 0.15s ease;
+}
 #gut .gut-plan[data-level="warn"]   { color: var(--gut-warn-t); font-weight: 500; }
 #gut .gut-plan[data-level="danger"] { color: var(--gut-danger-t); font-weight: 600; }
 
@@ -895,7 +926,7 @@
     max-width: 100%;
     border-radius: 999px;
     background: linear-gradient(90deg, var(--lv, var(--gut-primary)), var(--lv-end, var(--gut-primary)));
-    transition: width 0.55s cubic-bezier(0.2, 0, 0, 1), opacity 0.25s ease, background-color 0.3s;
+    transition: width 0.55s cubic-bezier(0.2, 0, 0, 1), min-width 0.3s ease, opacity 0.25s ease, background-color 0.3s;
 }
 #gut .gut-row-tick {
     position: absolute;
@@ -1014,6 +1045,7 @@
 
 @media (max-width: 520px) {
     #gut .gut-sub, #gut .gut-sub-dot, #gut .gut-account, #gut .gut-last-reply { display: none !important; }
+    #gut .gut-meta-right { max-width: 52%; }
     #gut .gut-panel { left: 0; right: 0; padding: 14px 14px 12px; border-radius: 20px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1113,7 +1145,7 @@
 
         const logoImg = h('img', {
             class: 'gut-gemini-logo',
-            src: 'https://www.gstatic.com/lamda/images/gemini_sparkle_aurora_33f86dc0c0257da337c63.svg',
+            src: PANEL_ICON_URI,
             width: 20, height: 20, alt: 'Gemini',
         });
         const logoFallback = icon(ICON.sparkle, 18, 'gut-sparkle-fallback');
@@ -1123,7 +1155,7 @@
             logoFallback.removeAttribute('hidden');
         }, { once: true });
 
-        u.panel = h('div', { id: 'gut-panel', class: 'gut-panel', role: 'dialog', 'aria-label': t('panelTitle') },
+        u.panel = h('div', { id: 'gut-panel', class: 'gut-panel', role: 'dialog', 'aria-hidden': 'true', 'aria-label': t('panelTitle') },
             h('div', { class: 'gut-head' },
                 h('div', { class: 'gut-head-left' },
                     h('span', { class: 'gut-head-icon' }, logoImg, logoFallback),
@@ -1159,7 +1191,7 @@
             if (e.pointerType === 'touch') return;
             S.hovered = false;
             clearTimeout(S.openTimer);
-            if (S.open && !S.pinned) S.closeTimer = setTimeout(closePanel, CFG.hoverCloseDelay);
+            if (S.open && !S.pinned) S.closeTimer = setTimeout(() => closePanel(), CFG.hoverCloseDelay);
         });
         u.strip.addEventListener('click', togglePin);
         u.strip.addEventListener('keydown', (e) => {
@@ -1219,9 +1251,14 @@
         S.open = true;
         S.ui.root.classList.add('is-open');
         S.ui.strip.setAttribute('aria-expanded', 'true');
-        detectCurrentModel();
+        S.ui.panel.setAttribute('aria-hidden', 'false');
+        detectCurrentModel(true);
+        const freshUser = getCurrentUser();
+        if (!S.user || (freshUser.usagePath === S.user.usagePath && freshUser.email && !S.user.email)) {
+            S.user = freshUser;
+        }
         render();
-        if (Date.now() - S.lastFetchAt > CFG.hoverRefreshGap) refresh(true);
+        if (S.error || Date.now() - S.lastFetchAt > CFG.hoverRefreshGap) refresh(true);
     }
 
     function closePanel(restoreFocus = false) {
@@ -1232,6 +1269,7 @@
         if (!S.ui) return;
         S.ui.root.classList.remove('is-open');
         S.ui.strip.setAttribute('aria-expanded', 'false');
+        S.ui.panel.setAttribute('aria-hidden', 'true');
         if (restoreFocus) S.ui.strip.focus({ preventScroll: true });
     }
 
@@ -1255,11 +1293,11 @@
         return (clone.textContent || '').replace(/\s+/g, ' ').trim();
     }
 
-    function detectCurrentModel() {
+    function detectCurrentModel(force = false) {
         const now = Date.now();
-        if (now - S.modelCheckAt < 2000) return;
+        if (!force && now - S.modelCheckAt < 2000) return;
         S.modelCheckAt = now;
-        const btn = $('button.input-area-switch') || $('[data-test-id="bard-mode-menu-button"]');
+        const btn = $('button.input-area-switch, [data-test-id="bard-mode-menu-button"], bard-mode-switcher button');
         const txt = extractCleanText(btn) || (btn?.innerText ?? btn?.textContent)?.replace(/\s+/g, ' ').trim();
         if (txt && txt !== S.currentModel) S.currentModel = txt;
     }
@@ -1275,6 +1313,7 @@
             row.root.dataset.level = 'ok';
             setText(row.pct, 'Free');
             row.fill.style.width = '0%';
+            row.fill.style.minWidth = '0';
             row.fill.style.opacity = '0';
             row.track.setAttribute('aria-valuenow', '0');
             row.elapsed.hidden = true;
@@ -1290,6 +1329,7 @@
         row.root.dataset.level = p ? p.level : 'ok';
         setText(row.pct, p ? `${fmtPct(pctVal)}%` : '--');
         row.fill.style.width = `${pctVal}%`;
+        row.fill.style.minWidth = pctVal > 0 ? '7px' : '0';
         row.fill.style.opacity = pctVal > 0 ? '1' : '0';
         row.track.setAttribute('aria-valuenow', String(Math.round(pctVal)));
 
@@ -1365,6 +1405,7 @@
 
         const sesPct = ses ? ses.pct : 0;
         u.fill.style.width = `${sesPct}%`;
+        u.fill.style.minWidth = sesPct > 0 ? '4px' : '0';
         u.fill.style.opacity = sesPct > 0 ? '1' : '0';
         u.fill.dataset.level = ses?.level || 'ok';
         u.bar.setAttribute('aria-valuenow', String(Math.round(sesPct)));
@@ -1524,19 +1565,35 @@
         return found;
     }
 
-    function countLastResponse() {
-        let nodes = document.querySelectorAll('model-response message-content');
-        if (!nodes.length) nodes = document.querySelectorAll('message-content');
-        const last = nodes[nodes.length - 1];
-        return last ? last.textContent.trim().length : 0;
+    function getLastResponseEl() {
+        const resps = document.querySelectorAll('model-response');
+        if (resps.length) {
+            const lastResp = resps[resps.length - 1];
+            const msgs = lastResp.querySelectorAll('message-content');
+            return msgs.length ? msgs[msgs.length - 1] : null;
+        }
+        const nodes = document.querySelectorAll('message-content');
+        return nodes.length ? nodes[nodes.length - 1] : null;
+    }
+
+    function countLastResponse(g) {
+        const last = getLastResponseEl();
+        if (!last) return 0;
+        const txt = last.textContent.trim();
+        if (g && last === g.prevLastEl && !g.inPlaceChanged) {
+            if (txt === g.prevLastText) return 0;
+            g.inPlaceChanged = true;
+        }
+        return txt.length;
     }
 
     function startLive() {
         if (!S.ui) return;
         clearTimeout(S.doneTimer);
         clearInterval(S.liveTimer);
-        detectCurrentModel();
+        detectCurrentModel(true);
 
+        const prevLast = getLastResponseEl();
         S.mode = 'live';
         S.gen = {
             start: Date.now(),
@@ -1546,6 +1603,9 @@
             idleSince: 0,
             syncing: false,
             delta: null,
+            prevLastEl: prevLast,
+            prevLastText: prevLast ? prevLast.textContent.trim() : '',
+            inPlaceChanged: false,
         };
         S.ui.root.classList.add('is-generating');
         S.ui.root.classList.remove('is-done');
@@ -1559,7 +1619,7 @@
 
         if (findStopBtn()) {
             g.idleSince = 0;
-            g.chars = countLastResponse();
+            g.chars = countLastResponse(g);
             paintMeta();
         } else if (!g.idleSince) {
             g.idleSince = Date.now();
@@ -1573,7 +1633,7 @@
         const g = S.gen;
         if (!g) return;
         g.end = Date.now();
-        g.chars = Math.max(g.chars, countLastResponse());
+        g.chars = Math.max(g.chars, countLastResponse(g));
         g.syncing = true;
         S.mode = 'done';
         S.ui.root.classList.remove('is-generating');
@@ -1586,9 +1646,9 @@
     async function syncAfterReply(g) {
         const alive = () => S.gen === g && S.mode === 'done';
         const before = g.basePct;
+        const waits = [1200, 2200, 3200];
 
-        for (let attempt = 0; attempt < 4; attempt++) {
-            const wait = attempt === 0 ? 1500 : 2500 + attempt * 1500;
+        for (const wait of waits) {
             await sleep(wait);
             if (!alive()) return;
 
@@ -1695,6 +1755,17 @@
         }
         syncTheme();
         fixQuotaBannerTimezone();
+
+        if (S.user && !S.user.email) {
+            const fresh = getCurrentUser();
+            if (fresh.usagePath !== S.user.usagePath) {
+                refresh(true);
+            } else if (fresh.email) {
+                S.user = fresh;
+                if (S.ui) render();
+            }
+        }
+
         if (S.ui && S.mode !== 'live' && findStopBtn()) startLive();
     }
 
@@ -1747,6 +1818,10 @@
             refresh(true);
         }, { passive: true });
         window.addEventListener('focus', () => refresh(false), { passive: true });
+        window.addEventListener('blur', () => {
+            S.hovered = false;
+            if (S.open && !S.pinned) closePanel();
+        }, { passive: true });
 
         document.addEventListener('pointerdown', (e) => {
             if (!S.open || !S.ui) return;
